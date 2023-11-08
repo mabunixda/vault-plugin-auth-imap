@@ -1,6 +1,6 @@
 module github.com/mabunixda/vault-plugin-auth-imap
 
-go 1.21
+go 1.20
 
 require (
 	github.com/emersion/go-imap v1.2.1

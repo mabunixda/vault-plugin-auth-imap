@@ -8,17 +8,17 @@ builds:
   env:
     - CGO_ENABLED=0
   goos:
-    - freebsd
+#    - freebsd
     - windows
     - darwin
     - linux
-    - netbsd
-    - openbsd
+#    - netbsd
+#    - openbsd
   goarch:
     - amd64
     - arm
     - arm64
-    - 386
+#    - 386
   goarm:
     - 6
     - 7

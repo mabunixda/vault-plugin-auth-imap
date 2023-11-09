@@ -1,3 +1,10 @@
+## 1.0.2 (2023-11-09)
+
+#### Bug Fixes
+
+* cleanup versioning and tooling (#6) (5d06c2fc)
+
+
 ## 1.0.1 (2023-11-08)
 
 #### Bug Fixes

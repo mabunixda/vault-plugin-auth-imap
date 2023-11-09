@@ -58,7 +58,7 @@ func newBackend() *backend {
 		Help:           strings.TrimSpace(backendHelp),
 		BackendType:    logical.TypeCredential,
 		AuthRenew:      b.pathAuthRenew,
-		RunningVersion: pluginVersion.Version,
+		RunningVersion: pluginVersion.PluginVersion,
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login",

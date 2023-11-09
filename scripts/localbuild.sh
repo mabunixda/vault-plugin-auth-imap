@@ -11,7 +11,7 @@ done
 
 GITHUB_SHA=$(git log --format="%H" -n 1)
 GOVERSION=$(go version)
-GIT_DIRTY=$(test -n "`git status --porcelain`" && echo "dirty" || echo "clean")
+GIT_DIRTY=$(test -n "`git status --porcelain`" && echo "-dirty" || echo "-local")
 
 export GITHUB_SHA GOVERSION GIT_DIRTY
 

@@ -1,14 +1,5 @@
-# GOARCH = amd64
-
-UNAME = $(shell uname -s)
-
-ifndef OS
-	ifeq ($(UNAME), Linux)
-		OS = linux
-	else ifeq ($(UNAME), Darwin)
-		OS = darwin
-	endif
-endif
+GOARCH = $(shell go env GOARCH)
+OS = $(shell go env GOOS)
 
 .DEFAULT_GOAL := all
 
@@ -16,16 +7,16 @@ all: fmt build start
 
 build:
 	mkdir -p vault/plugins
-	GOOS=$(OS) GOARCH="$(GOARCH)" go build -o vault/plugins/vault-plugin-auth-imap cmd/vault-plugin-auth-imap/main.go
+	./scripts/localbuild.sh
 
 start:
-	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./vault/plugins
+	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/
 
 enable:
 	vault auth enable -path=imap vault-plugin-auth-imap
 
 clean:
-	rm -f ./vault/plugins/vault-plugin-auth-imap
+	rm -f ./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/vault-plugin-auth-imap
 
 fmt:
 	go fmt $$(go list ./...)

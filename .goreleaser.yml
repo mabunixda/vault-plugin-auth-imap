@@ -5,6 +5,13 @@ release:
 builds:
 - id: vault-plugin-auth-imap
   main: ./cmd/vault-plugin-auth-imap
+  ldflags: >-
+      -s -w
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.Version={{ .Tag }}"
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.BuildDate={{ .CommitDate }}"
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GoVersion={{ .Env.GOVERSION }}"
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitCommit={{ .Env.GITHUB_SHA }}"
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitDirty={{ .Env.GIT_DIRTY }}
   env:
     - CGO_ENABLED=0
   goos:

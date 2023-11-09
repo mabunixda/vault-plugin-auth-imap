@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eo pipefail
+set -xeo pipefail
 
 for cmd in "date" "git" "go" "goreleaser" "yq"; do
     if ! command -v ${cmd} >/dev/null ; then
@@ -10,11 +10,9 @@ for cmd in "date" "git" "go" "goreleaser" "yq"; do
 done
 
 GITHUB_SHA=$(git log --format="%H" -n 1)
-BUILD_DATE=$(date +'%Y-%m-%d %H:%M:%S')
 GOVERSION=$(go version)
-VERSION="$(git describe --tags 2>/dev/null || echo "0.0.0" )-local)"
 GIT_DIRTY=$(test -n "`git status --porcelain`" && echo "dirty" || echo "clean")
 
-export GITHUB_SHA BUILD_DATE GOVERSION VERSION IMAGE_NAME GIT_DIRTY
+export GITHUB_SHA GOVERSION GIT_DIRTY
 
-goreleaser build --snapshot --clean --single-target
+goreleaser build --snapshot --clean --single-target $@

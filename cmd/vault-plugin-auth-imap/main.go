@@ -10,9 +10,11 @@ import (
 )
 
 func main() {
+
 	apiClientMeta := &api.PluginAPIClientMeta{}
 	flags := apiClientMeta.FlagSet()
 	logger := hclog.New(&hclog.LoggerOptions{})
+
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		logger.Error("plugin shutting down", "error", err)
 		os.Exit(1)

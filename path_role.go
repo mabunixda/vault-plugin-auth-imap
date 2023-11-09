@@ -34,10 +34,6 @@ func (b *backend) pathRole() *framework.Path {
 				Type:        framework.TypeLowerCaseString,
 				Description: "Name of the role.",
 			},
-			"public_keys": {
-				Type:        framework.TypeCommaStringSlice,
-				Description: "Public keys allowed for this role.",
-			},
 			"principals": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: "Principals allowed for this role. A * means every principal is accepted.",
@@ -76,7 +72,7 @@ func (b *backend) pathRole() *framework.Path {
 	return p
 }
 
-type sshRole struct {
+type imapRole struct {
 	tokenutil.TokenParams
 
 	Principals []string `json:"principals"`
@@ -84,7 +80,7 @@ type sshRole struct {
 
 // role takes a storage backend and the name and returns the role's storage
 // entry
-func (b *backend) role(ctx context.Context, s logical.Storage, name string) (*sshRole, error) {
+func (b *backend) role(ctx context.Context, s logical.Storage, name string) (*imapRole, error) {
 	raw, err := s.Get(ctx, rolePrefix+name)
 	if err != nil {
 		return nil, err
@@ -94,7 +90,7 @@ func (b *backend) role(ctx context.Context, s logical.Storage, name string) (*ss
 		return nil, nil
 	}
 
-	role := new(sshRole)
+	role := new(imapRole)
 	if err := raw.DecodeJSON(role); err != nil {
 		return nil, err
 	}
@@ -185,7 +181,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 			return logical.ErrorResponse("role entry not found during update operation"), nil
 		}
 
-		role = new(sshRole)
+		role = new(imapRole)
 
 		// set defaults for token parameters
 		config, err := b.config(ctx, req.Storage)
@@ -245,7 +241,7 @@ var roleHelp = map[string][2]string{
 	"role": {
 		"Register an role with the backend.",
 		`A role is required to authenticate with this backend. The role binds
-		ssh information with token policies and settings.
+		imap information with token policies and settings.
 		The bindings, token polices and token settings can all be configured
 		using this endpoint`,
 	},

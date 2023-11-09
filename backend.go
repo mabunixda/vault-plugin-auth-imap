@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
+
+	pluginVersion "github.com/mabunixda/vault-plugin-auth-imap/version"
 )
 
 const (
@@ -53,9 +55,10 @@ func newBackend() *backend {
 	b := &backend{}
 
 	b.Backend = &framework.Backend{
-		Help:        strings.TrimSpace(backendHelp),
-		BackendType: logical.TypeCredential,
-		AuthRenew:   b.pathAuthRenew,
+		Help:           strings.TrimSpace(backendHelp),
+		BackendType:    logical.TypeCredential,
+		AuthRenew:      b.pathAuthRenew,
+		RunningVersion: pluginVersion.PluginVersion,
 		PathsSpecial: &logical.Paths{
 			Unauthenticated: []string{
 				"login",

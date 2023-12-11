@@ -1,3 +1,14 @@
+## 1.1.0 (2023-12-11)
+
+#### Feature
+
+* regex setup for authentication (#8) (05702c7a)
+
+#### Build
+
+* **deps:** Bump github.com/go-jose/go-jose/v3 from 3.0.0 to 3.0.1 (#7) (7c79b90c)
+
+
 ## 1.0.2 (2023-11-09)
 
 #### Bug Fixes

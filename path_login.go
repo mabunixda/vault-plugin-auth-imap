@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"slices"
 	"time"
 
@@ -104,7 +105,7 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 	password := data.Get("password").(string)
 
 	// if we have explicit principals we must check those
-	if len(role.Principals) > 0 && !slices.Contains(role.Principals, principal) {
+	if !b.isValidPrincipal(role.Principals, principal) {
 		return logical.ErrorResponse("invalid username"), nil
 	}
 
@@ -156,6 +157,29 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 	resp.Auth = auth
 
 	return resp, nil
+}
+
+func (b *backend) isValidPrincipal(principals []string, principal string) bool {
+	// either no principals configured
+	if len(principals) == 0 {
+		return true
+	}
+	// ... or the principal is in the list as string
+	if slices.Contains(principals, principal) {
+		return true
+	}
+	b.Logger().Warn("principal not in list - going for regex ... ")
+	for _, p := range principals {
+
+		re, err := regexp.Compile(p)
+		if err != nil {
+			continue
+		}
+		if re.MatchString(principal) {
+			return true
+		}
+	}
+	return false
 }
 
 func validNonceTime(nonce []byte) bool {

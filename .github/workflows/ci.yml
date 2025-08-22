@@ -95,6 +95,7 @@ jobs:
       - uses: go-semantic-release/action@v1
         id: generate_changelog
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           prepend: true
           changelog-file: CHANGELOG.md
 

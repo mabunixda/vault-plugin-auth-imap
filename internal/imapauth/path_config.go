@@ -26,10 +26,25 @@ func (b *backend) pathConfig() *framework.Path {
 				Description: `Whether to use SSL when connecting to the IMAP server.`,
 				Default:     true,
 			},
+			"starttls": {
+				Type:        framework.TypeBool,
+				Description: `Whether to use STARTTLS when connecting to the IMAP server.`,
+				Default:     false,
+			},
+			"skip_tls_verify": {
+				Type:        framework.TypeBool,
+				Description: `Skip TLS certificate verification (not recommended for production).`,
+				Default:     false,
+			},
+			"connection_timeout": {
+				Type:        framework.TypeDurationSecond,
+				Description: `Timeout for IMAP connection in seconds.`,
+				Default:     30,
+			},
 			"secure_nonce": {
 				Type:        framework.TypeBool,
 				Description: `Whether to use secure nonce generation.`,
-				Default:     false,
+				Default:     true,
 			},
 		},
 

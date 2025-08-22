@@ -29,10 +29,13 @@ type backend struct {
 type ConfigEntry struct {
 	tokenutil.TokenParams
 
-	ImapServer  string `json:"imap_server"`
-	ImapPort    int    `json:"imap_port"`
-	ImapSsl     bool   `json:"imap_ssl"`
-	SecureNonce bool   `json:"secure_nonce"`
+	ImapServer        string        `json:"imap_server"`
+	ImapPort          int           `json:"imap_port"`
+	ImapSsl           bool          `json:"imap_ssl"`
+	StartTLS          bool          `json:"starttls"`
+	SkipTLSVerify     bool          `json:"skip_tls_verify"`
+	ConnectionTimeout time.Duration `json:"connection_timeout"`
+	SecureNonce       bool          `json:"secure_nonce"`
 }
 
 var _ logical.Factory = Factory

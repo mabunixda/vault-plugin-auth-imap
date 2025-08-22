@@ -2,8 +2,10 @@ package imapauth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"regexp"
 	"slices"
 	"time"
@@ -104,6 +106,22 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 	principal := data.Get("username").(string)
 	password := data.Get("password").(string)
 
+	// Input validation
+	if principal == "" {
+		return logical.ErrorResponse("username is required"), nil
+	}
+	if password == "" {
+		return logical.ErrorResponse("password is required"), nil
+	}
+
+	// Sanitize principal to prevent injection attacks
+	if len(principal) > 256 {
+		return logical.ErrorResponse("username too long"), nil
+	}
+	if len(password) > 256 {
+		return logical.ErrorResponse("password too long"), nil
+	}
+
 	// if we have explicit principals we must check those
 	if !b.isValidPrincipal(role.Principals, principal) {
 		return logical.ErrorResponse("invalid username"), nil
@@ -112,19 +130,63 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 	var imapClient *client.Client
 	imapServer := fmt.Sprintf("%s:%d", config.ImapServer, config.ImapPort)
 
-	if config.ImapSsl {
-		imapClient, err = client.DialTLS(imapServer, nil)
-	} else {
-		imapClient, err = client.Dial(imapServer)
-	}
-	if err != nil {
-		return logical.ErrorResponse(fmt.Sprintf("Could not connect to mailserver, %s ", err)), err
+	// Setup connection with timeout
+	dialer := &net.Dialer{
+		Timeout: config.ConnectionTimeout,
 	}
 
-	defer imapClient.Logout() //nolint:all
+	if config.ImapSsl {
+		// Direct TLS connection
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: config.SkipTLSVerify,
+		}
+		conn, err := tls.DialWithDialer(dialer, "tcp", imapServer, tlsConfig)
+		if err != nil {
+			b.Logger().Error("Failed to establish TLS connection to IMAP server", "error", err)
+			return logical.ErrorResponse("Authentication failed"), nil
+		}
+		imapClient, err = client.New(conn)
+		if err != nil {
+			_ = conn.Close()
+			b.Logger().Error("Failed to create IMAP client", "error", err)
+			return logical.ErrorResponse("Authentication failed"), nil
+		}
+	} else {
+		// Plain connection, potentially with STARTTLS
+		conn, err := dialer.Dial("tcp", imapServer)
+		if err != nil {
+			b.Logger().Error("Failed to connect to IMAP server", "error", err)
+			return logical.ErrorResponse("Authentication failed"), nil
+		}
+		imapClient, err = client.New(conn)
+		if err != nil {
+			_ = conn.Close()
+			b.Logger().Error("Failed to create IMAP client", "error", err)
+			return logical.ErrorResponse("Authentication failed"), nil
+		}
+
+		// If STARTTLS is enabled, attempt to upgrade the connection
+		if config.StartTLS {
+			tlsConfig := &tls.Config{
+				ServerName:         config.ImapServer,
+				InsecureSkipVerify: config.SkipTLSVerify,
+			}
+			if err := imapClient.StartTLS(tlsConfig); err != nil {
+				b.Logger().Error("STARTTLS failed", "error", err)
+				return logical.ErrorResponse("Authentication failed"), nil
+			}
+		}
+	}
+
+	defer func() {
+		if imapClient != nil {
+			_ = imapClient.Logout()
+		}
+	}()
 
 	if err := imapClient.Login(principal, password); err != nil {
-		return logical.ErrorResponse(fmt.Sprintf("Could not login '%s' to '%s' - %s ", principal, imapServer, err)), err
+		b.Logger().Warn("IMAP authentication failed", "principal", principal, "error", err)
+		return logical.ErrorResponse("Authentication failed"), nil
 	}
 	// Take the principal as the alias name
 	aliasName = principal
@@ -164,19 +226,45 @@ func (b *backend) isValidPrincipal(principals []string, principal string) bool {
 	if len(principals) == 0 {
 		return true
 	}
+
+	// Sanitize principal
+	if len(principal) == 0 || len(principal) > 256 {
+		return false
+	}
+
 	// ... or the principal is in the list as string
 	if slices.Contains(principals, principal) {
 		return true
 	}
-	b.Logger().Warn("principal not in list - going for regex ... ")
+
+	b.Logger().Debug("principal not in list - checking regex patterns")
 	for _, p := range principals {
+		// Limit regex pattern length to prevent ReDoS
+		if len(p) > 1000 {
+			b.Logger().Warn("skipping overly long regex pattern")
+			continue
+		}
 
 		re, err := regexp.Compile(p)
 		if err != nil {
+			b.Logger().Warn("invalid regex pattern", "pattern", p, "error", err)
 			continue
 		}
-		if re.MatchString(principal) {
-			return true
+
+		// Set a timeout for regex execution to prevent ReDoS
+		matched := make(chan bool, 1)
+		go func() {
+			matched <- re.MatchString(principal)
+		}()
+
+		select {
+		case result := <-matched:
+			if result {
+				return true
+			}
+		case <-time.After(100 * time.Millisecond):
+			b.Logger().Warn("regex pattern timed out", "pattern", p)
+			continue
 		}
 	}
 	return false

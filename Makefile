@@ -24,14 +24,28 @@ BUILD_ARGS := -o $(IMAGE_NAME) -trimpath -ldflags='$(LD_FLAGS)'
 .DEFAULT_GOAL := all
 .PHONY: build clean fmt start enable test test-cover
 
-all: clean fmt build
+all: build
 
 ldflags:
 	@echo $(LD_FLAGS)
 
-build:
+prepare: clean fmt
+	@echo "Preparing build with:"
+	@echo "  VERSION:     $(VERSION)"
+	@echo "  COMMIT:      $(COMMIT)"
+	@echo "  BUILD_DATE:  $(BUILD_DATE)"
+	@echo "  GOVERSION:   $(GOVERSION)"
+	@echo "  GIT_DIRTY:   $(GIT_DIRTY)"
+	@echo "  LD_FLAGS:    $(LD_FLAGS)"
 	mkdir -p vault/plugins
+
+build: snapshot
+
+snapshot: prepare
 	@LD_FLAGS='$(LD_FLAGS)' goreleaser build --snapshot --single-target
+
+release: prepare
+	@LD_FLAGS='$(LD_FLAGS)' RELEASE=1 goreleaser release
 
 start:
 	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/

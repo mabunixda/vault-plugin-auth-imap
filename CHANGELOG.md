@@ -1,3 +1,10 @@
+## 1.2.0 (2025-08-22)
+
+#### Feature
+
+* Security/improvements (#17) (3d9bc6d2)
+
+
 ## 1.1.0 (2023-12-11)
 
 #### Feature

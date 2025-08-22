@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/plugin"
-	imapauth "github.com/mabunixda/vault-plugin-auth-imap"
+	imapauth "github.com/mabunixda/vault-plugin-auth-imap/internal/imapauth"
 )
 
 func main() {

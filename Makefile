@@ -21,4 +21,21 @@ clean:
 fmt:
 	go fmt $$(go list ./...)
 
-.PHONY: build clean fmt start enable
+.PHONY: build clean fmt start enable test test-cover
+
+
+test:
+	@go test -v -short -cover -covermode=atomic -race -timeout 120s -coverprofile=coverage.out $(shell go list ./...)
+
+test-coverage: test
+	go tool cover -html=coverage.out -o coverage.html
+	rm -f coverage.out
+
+porcelain::
+	gofmt -w -l $$(find . -name '*.go')
+	go mod tidy
+	test -z "$$(git status --porcelain)" || (git status; git diff; false)
+
+assets::
+	go generate ./...
+

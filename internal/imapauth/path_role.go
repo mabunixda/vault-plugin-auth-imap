@@ -37,6 +37,7 @@ func (b *backend) pathRole() *framework.Path {
 			"principals": {
 				Type:        framework.TypeCommaStringSlice,
 				Description: "Principals allowed for this role. A * means every principal is accepted.",
+				Required:    true,
 			},
 		},
 		ExistenceCheck: b.pathRoleExistenceCheck,
@@ -169,34 +170,53 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 		return logical.ErrorResponse("missing role name"), nil
 	}
 
-	// Check if the role already exists
-	role, err := b.role(ctx, req.Storage, roleName)
+	// Create a new role or get existing one
+	var role *imapRole
+	if req.Operation == logical.UpdateOperation {
+		existingRole, err := b.role(ctx, req.Storage, roleName)
+		if err != nil {
+			return nil, err
+		}
+		if existingRole == nil {
+			return logical.ErrorResponse("role entry not found during update operation"), nil
+		}
+		role = existingRole
+	} else {
+		role = new(imapRole)
+	}
+
+	// set defaults for token parameters
+	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a new entry object if this is a CreateOperation
-	if role == nil {
-		if req.Operation == logical.UpdateOperation {
-			return logical.ErrorResponse("role entry not found during update operation"), nil
-		}
-
-		role = new(imapRole)
-
-		// set defaults for token parameters
-		config, err := b.config(ctx, req.Storage)
-		if err != nil {
-			return nil, err
-		}
-
-		if config != nil {
-			role.TokenParams = config.TokenParams
-		}
+	if config != nil {
+		role.TokenParams = config.TokenParams
 	}
 
 	if principals, ok := data.GetOk("principals"); ok {
 		role.Principals = principals.([]string)
+	} else if req.Operation == logical.CreateOperation {
+		return logical.ErrorResponse("principals are required for role creation"), nil
 	}
+
+	// Parse token fields
+	if err := role.ParseTokenFields(req, data); err != nil {
+		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
+	}
+
+	// Store the role
+	var entry *logical.StorageEntry
+	entry, err = logical.StorageEntryJSON(rolePrefix+roleName, role)
+	if err != nil {
+		return nil, err
+	}
+	if err = req.Storage.Put(ctx, entry); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 
 	if err = role.ParseTokenFields(req, data); err != nil {
 		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
@@ -220,7 +240,7 @@ func (b *backend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request
 	}
 
 	// Store the entry.
-	entry, err := logical.StorageEntryJSON(rolePrefix+roleName, role)
+	entry, err = logical.StorageEntryJSON(rolePrefix+roleName, role)
 	if err != nil {
 		return nil, err
 	}

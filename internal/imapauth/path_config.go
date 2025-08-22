@@ -99,9 +99,19 @@ func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, data
 }
 
 func (b *backend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	server := d.Get("imap_server").(string)
+	if server == "" {
+		return logical.ErrorResponse("imap_server is required"), logical.ErrInvalidRequest
+	}
+
+	port := d.Get("imap_port").(int)
+	if port <= 0 || port > 65535 {
+		return logical.ErrorResponse("invalid port number"), logical.ErrInvalidRequest
+	}
+
 	config := &ConfigEntry{
-		ImapServer:  d.Get("imap_server").(string),
-		ImapPort:    d.Get("imap_port").(int),
+		ImapServer:  server,
+		ImapPort:    port,
 		ImapSsl:     d.Get("imap_ssl").(bool),
 		SecureNonce: d.Get("secure_nonce").(bool),
 	}

@@ -1,0 +1,29 @@
+---
+name: Clean Go
+
+env:
+  GO_VERSION: ^1.24
+
+on:
+  push:
+    branches: ["**", "!main"]
+
+jobs:
+  clean:
+    name: Clean
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+        id: go
+
+      - name: Assets
+        run: make assets
+
+      - name: Porcelain
+        run: make porcelain

@@ -1,0 +1,30 @@
+---
+name: Testing
+
+env:
+  GO_VERSION: ^1.24
+
+on:
+  push:
+    branches: ["**", "!main"]
+
+jobs:
+  testing:
+    name: Testing build
+
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Test
+        run: make test

@@ -8,7 +8,7 @@ on:
     branches: ["main"]
 
 env:
-  GOVERSION: "1.24.x"
+  GOVERSION: "1.24"
 
 permissions:
   contents: write
@@ -41,7 +41,7 @@ jobs:
         if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
         with:
           go-version: ${{ env.GOVERSION }}
-          cache: true
+          cache: false
 
       - uses: pre-commit/action@v3.0.0
         if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
@@ -51,41 +51,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - run: git fetch --force --tags
 
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GOVERSION }}
-          cache: true
+          cache: false
 
-      - name: gitstate check
-        id: gitdirty
+      - name: build prepare
+        id: build_prepare
         run: |
-          echo GIT_DIRTY=$(test -n "`git status --porcelain`" && echo "-dirty" || echo "")  >> "$GITHUB_OUTPUT"
-          echo BUILD_FLAGS="$( test "$GITHUB_REF_TYPE" = "tag"  && echo "release" || echo "build --snapshot" )" >> "$GITHUB_OUTPUT"
+          echo LD_FLAGS=$(make ldflags)  >> "$GITHUB_OUTPUT"
+          makeTarget=snapshot
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            makeTarget=release
+          fi
+          echo BUILD_FLAGS="$(grep -A1 "${makeTarget}:"  Makefile | awk -F 'goreleaser' '{print $2}' | tail -n1)" >> "$GITHUB_OUTPUT"
 
-      - name: CI Build
+      - name: CI Builds
+        id: build
         uses: goreleaser/goreleaser-action@v6
-        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LD_FLAGS: ${{ steps.build_prepare.outputs.LD_FLAGS }}
         with:
           distribution: goreleaser
-          version: latest
-          args: ${{ steps.gitdirty.outputs.BUILD_FLAGS}}
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN }}
-          BUILD_DATE: ${{ needs.prebuild.outputs.currentDate }}
-          VERSION: ${{ needs.prebuild.outputs.version }}
-          GOVERSION: ${{ env.GOVERSION }}
-          GIT_DIRTY: ${{ steps.gitdirty.outputs.GIT_DIRTY}}
+          version: "~> v2"
+          args: ${{ steps.build_prepare.outputs.BUILD_FLAGS }}
 
       - name: Upload assets
         if: success() && !startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: commandemy
+          name: vault-plugin-auth-imap
           path: dist/*
 
   release:

@@ -75,7 +75,6 @@ jobs:
           version: latest
           args: ${{ steps.gitdirty.outputs.BUILD_FLAGS}}
         env:
-          GITHUB_TOKEN: ${{ secrets.BOT_ACCESS_TOKEN }}
           BUILD_DATE: ${{ needs.prebuild.outputs.currentDate }}
           VERSION: ${{ needs.prebuild.outputs.version }}
           GOVERSION: ${{ env.GOVERSION }}
@@ -94,13 +93,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.BOT_ACCESS_TOKEN }}
 
       - uses: go-semantic-release/action@v1
         id: generate_changelog
         with:
-          github-token: ${{ secrets.BOT_ACCESS_TOKEN }}
           prepend: true
           changelog-file: CHANGELOG.md
 

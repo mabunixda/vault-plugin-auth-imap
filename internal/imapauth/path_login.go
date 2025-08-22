@@ -2,15 +2,10 @@ package imapauth
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
-	"net"
-	"regexp"
-	"slices"
 	"time"
-
-	"github.com/emersion/go-imap/client"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/cidrutil"
@@ -23,19 +18,19 @@ func (b *backend) pathLogin() *framework.Path {
 		Fields: map[string]*framework.FieldSchema{
 			"role": {
 				Type:        framework.TypeString,
-				Description: "Role to use",
+				Description: RoleFieldDesc,
 			},
 			"password": {
 				Type:        framework.TypeString,
-				Description: "FIXXME",
+				Description: PasswordFieldDesc,
 			},
 			"username": {
 				Type:        framework.TypeString,
-				Description: "FIXXME",
+				Description: UsernameFieldDesc,
 			},
 			"nonce": {
 				Type:        framework.TypeString,
-				Description: "Nonce (base64 encoded)",
+				Description: NonceFieldDesc,
 			},
 		},
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -51,32 +46,115 @@ func (b *backend) pathLogin() *framework.Path {
 }
 
 func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	// Load configuration
 	config, err := b.config(ctx, req.Storage)
 	if err != nil {
 		return nil, err
 	}
-
 	if config == nil {
-		return logical.ErrorResponse("could not load configuration"), nil
+		return logical.ErrorResponse(ErrMsgConfigNotFound), nil
 	}
 
-	roleName := data.Get("role").(string)
-	if roleName == "" {
-		return logical.ErrorResponse("role must be provided"), nil
+	// Extract and validate basic input data (but not nonce yet)
+	loginData, err := b.extractLoginData(data)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
+	// Validate basic input (role, username, password) but not nonce
+	validator := NewInputValidator(b.Logger())
+	if err := validator.ValidateRole(loginData.Role); err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+	if err := validator.ValidateCredentials(loginData.Username, loginData.Password); err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+
+	// Load and validate role (this should come before nonce validation to match test expectations)
+	role, err := b.loadAndValidateRole(ctx, req, loginData.Role)
+	if err != nil {
+		return nil, err
+	}
+	if role == nil {
+		return logical.ErrorResponse(fmt.Sprintf("role %q could not be found", loginData.Role)), nil
+	}
+
+	// Validate nonce if secure nonce is enabled (after role validation)
+	if config.SecureNonce {
+		if err := validator.ValidateNonce(loginData.Nonce); err != nil {
+			return logical.ErrorResponse(err.Error()), nil
+		}
+		if err := b.validateSecureNonce(config, loginData.Nonce); err != nil {
+			return logical.ErrorResponse(err.Error()), nil
+		}
+	}
+
+	// Validate principal against role
+	principalValidator := NewPrincipalValidator(b.Logger())
+	if !principalValidator.ValidatePrincipal(role.Principals, loginData.Username) {
+		return logical.ErrorResponse(ErrMsgInvalidUsername), nil
+	}
+
+	// Authenticate with IMAP server
+	connManager := NewIMAPConnectionManager(config, b.Logger())
+	if err := connManager.AuthenticateUser(ctx, loginData.Username, loginData.Password); err != nil {
+		return logical.ErrorResponse(ErrMsgAuthFailed), nil
+	}
+
+	// Build successful response
+	return b.buildAuthResponse(loginData, role)
+}
+
+// LoginData holds the extracted login data from the request
+type LoginData struct {
+	Role     string
+	Username string
+	Password string
+	Nonce    string
+}
+
+// extractLoginData extracts and returns login data from the request
+func (b *backend) extractLoginData(data *framework.FieldData) (*LoginData, error) {
+	role, ok := data.GetOk("role")
+	if !ok || role == nil {
+		return nil, errors.New(ErrMsgRoleRequired)
+	}
+
+	username, ok := data.GetOk("username")
+	if !ok || username == nil {
+		return nil, errors.New(ErrMsgUsernameRequired)
+	}
+
+	password, ok := data.GetOk("password")
+	if !ok || password == nil {
+		return nil, errors.New(ErrMsgPasswordRequired)
+	}
+
+	nonce, _ := data.GetOk("nonce") // nonce is optional
+
+	var nonceStr string
+	if nonce != nil {
+		nonceStr = nonce.(string)
+	}
+
+	return &LoginData{
+		Role:     role.(string),
+		Username: username.(string),
+		Password: password.(string),
+		Nonce:    nonceStr,
+	}, nil
+}
+
+// loadAndValidateRole loads a role and validates CIDR restrictions
+func (b *backend) loadAndValidateRole(ctx context.Context, req *logical.Request, roleName string) (*imapRole, error) {
 	role, err := b.role(ctx, req.Storage, roleName)
 	if err != nil {
 		return nil, err
 	}
 
-	if role == nil {
-		return logical.ErrorResponse("role %q could not be found", roleName), nil
-	}
-
-	if len(role.TokenBoundCIDRs) > 0 {
+	if role != nil && len(role.TokenBoundCIDRs) > 0 {
 		if req.Connection == nil {
-			b.Logger().Warn("token bound CIDRs found but no connection information available for validation")
+			b.Logger().Warn(LogMsgCIDRValidationWarn)
 			return nil, logical.ErrPermissionDenied
 		}
 
@@ -85,126 +163,38 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 		}
 	}
 
-	nonce := data.Get("nonce").(string)
-	if config.SecureNonce {
-		if nonce == "" {
-			return logical.ErrorResponse("nonce must be provided"), nil
-		}
+	return role, nil
+}
 
-		nonceDecode, err := base64.StdEncoding.DecodeString(nonce)
-		if err != nil {
-			return logical.ErrorResponse("decoding nonce failed"), nil
-		}
-
-		if !b.nonceValidate(config, nonceDecode) {
-			return logical.ErrorResponse("nonce time expired or invalid"), nil
-		}
-	}
-	// Name for the logical.Alias to set
-	aliasName := roleName //nolint:all
-
-	principal := data.Get("username").(string)
-	password := data.Get("password").(string)
-
-	// Input validation
-	if principal == "" {
-		return logical.ErrorResponse("username is required"), nil
-	}
-	if password == "" {
-		return logical.ErrorResponse("password is required"), nil
+// validateSecureNonce validates a nonce when secure nonce is enabled
+func (b *backend) validateSecureNonce(config *ConfigEntry, nonce string) error {
+	if nonce == "" {
+		return errors.New(ErrMsgNonceRequired)
 	}
 
-	// Sanitize principal to prevent injection attacks
-	if len(principal) > 256 {
-		return logical.ErrorResponse("username too long"), nil
-	}
-	if len(password) > 256 {
-		return logical.ErrorResponse("password too long"), nil
+	nonceDecode, err := base64.StdEncoding.DecodeString(nonce)
+	if err != nil {
+		return errors.New(ErrMsgNonceDecodeFailed)
 	}
 
-	// if we have explicit principals we must check those
-	if !b.isValidPrincipal(role.Principals, principal) {
-		return logical.ErrorResponse("invalid username"), nil
+	if !b.nonceValidate(config, nonceDecode) {
+		return errors.New(ErrMsgNonceInvalid)
 	}
 
-	var imapClient *client.Client
-	imapServer := fmt.Sprintf("%s:%d", config.ImapServer, config.ImapPort)
+	return nil
+}
 
-	// Setup connection with timeout
-	dialer := &net.Dialer{
-		Timeout: config.ConnectionTimeout,
+// buildAuthResponse builds the authentication response
+func (b *backend) buildAuthResponse(loginData *LoginData, role *imapRole) (*logical.Response, error) {
+	aliasName := loginData.Username
+
+	metadata := map[string]string{
+		"role": loginData.Role,
 	}
 
-	if config.ImapSsl {
-		// Direct TLS connection
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: config.SkipTLSVerify,
-		}
-		conn, err := tls.DialWithDialer(dialer, "tcp", imapServer, tlsConfig)
-		if err != nil {
-			b.Logger().Error("Failed to establish TLS connection to IMAP server", "error", err)
-			return logical.ErrorResponse("Authentication failed"), nil
-		}
-		imapClient, err = client.New(conn)
-		if err != nil {
-			_ = conn.Close()
-			b.Logger().Error("Failed to create IMAP client", "error", err)
-			return logical.ErrorResponse("Authentication failed"), nil
-		}
-	} else {
-		// Plain connection, potentially with STARTTLS
-		conn, err := dialer.Dial("tcp", imapServer)
-		if err != nil {
-			b.Logger().Error("Failed to connect to IMAP server", "error", err)
-			return logical.ErrorResponse("Authentication failed"), nil
-		}
-		imapClient, err = client.New(conn)
-		if err != nil {
-			_ = conn.Close()
-			b.Logger().Error("Failed to create IMAP client", "error", err)
-			return logical.ErrorResponse("Authentication failed"), nil
-		}
-
-		// If STARTTLS is enabled, attempt to upgrade the connection
-		if config.StartTLS {
-			tlsConfig := &tls.Config{
-				ServerName:         config.ImapServer,
-				InsecureSkipVerify: config.SkipTLSVerify,
-			}
-			if err := imapClient.StartTLS(tlsConfig); err != nil {
-				b.Logger().Error("STARTTLS failed", "error", err)
-				return logical.ErrorResponse("Authentication failed"), nil
-			}
-		}
-	}
-
-	defer func() {
-		if imapClient != nil {
-			_ = imapClient.Logout()
-		}
-	}()
-
-	if err := imapClient.Login(principal, password); err != nil {
-		b.Logger().Warn("IMAP authentication failed", "principal", principal, "error", err)
-		return logical.ErrorResponse("Authentication failed"), nil
-	}
-	// Take the principal as the alias name
-	aliasName = principal
-
-	metadata := map[string]string{}
-	if metadataRaw, ok := data.GetOk("metadata"); ok {
-		for key, value := range metadataRaw.(map[string]string) {
-			metadata[key] = value
-		}
-	}
-	// Set role last in case need to override something user set
-	metadata["role"] = roleName
-
-	// Compose the response
-	resp := &logical.Response{}
 	auth := &logical.Auth{
 		InternalData: map[string]interface{}{
-			"role": roleName,
+			"role": loginData.Role,
 		},
 		Metadata:    metadata,
 		DisplayName: aliasName,
@@ -216,58 +206,14 @@ func (b *backend) handleLogin(ctx context.Context, req *logical.Request, data *f
 
 	role.PopulateTokenAuth(auth)
 
-	resp.Auth = auth
-
-	return resp, nil
+	return &logical.Response{
+		Auth: auth,
+	}, nil
 }
 
 func (b *backend) isValidPrincipal(principals []string, principal string) bool {
-	// either no principals configured
-	if len(principals) == 0 {
-		return true
-	}
-
-	// Sanitize principal
-	if len(principal) == 0 || len(principal) > 256 {
-		return false
-	}
-
-	// ... or the principal is in the list as string
-	if slices.Contains(principals, principal) {
-		return true
-	}
-
-	b.Logger().Debug("principal not in list - checking regex patterns")
-	for _, p := range principals {
-		// Limit regex pattern length to prevent ReDoS
-		if len(p) > 1000 {
-			b.Logger().Warn("skipping overly long regex pattern")
-			continue
-		}
-
-		re, err := regexp.Compile(p)
-		if err != nil {
-			b.Logger().Warn("invalid regex pattern", "pattern", p, "error", err)
-			continue
-		}
-
-		// Set a timeout for regex execution to prevent ReDoS
-		matched := make(chan bool, 1)
-		go func() {
-			matched <- re.MatchString(principal)
-		}()
-
-		select {
-		case result := <-matched:
-			if result {
-				return true
-			}
-		case <-time.After(100 * time.Millisecond):
-			b.Logger().Warn("regex pattern timed out", "pattern", p)
-			continue
-		}
-	}
-	return false
+	validator := NewPrincipalValidator(b.Logger())
+	return validator.ValidatePrincipal(principals, principal)
 }
 
 func validNonceTime(nonce []byte) bool {

@@ -2,6 +2,8 @@ package imapauth
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
@@ -114,34 +116,48 @@ func (b *backend) pathConfigRead(ctx context.Context, req *logical.Request, data
 }
 
 func (b *backend) pathConfigWrite(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	server := d.Get("imap_server").(string)
-	if server == "" {
-		return logical.ErrorResponse("imap_server is required"), logical.ErrInvalidRequest
-	}
-
-	port := d.Get("imap_port").(int)
-	if port <= 0 || port > 65535 {
-		return logical.ErrorResponse("invalid port number"), logical.ErrInvalidRequest
-	}
-
+	// Extract configuration from request
 	config := &ConfigEntry{
-		ImapServer:  server,
-		ImapPort:    port,
-		ImapSsl:     d.Get("imap_ssl").(bool),
-		SecureNonce: d.Get("secure_nonce").(bool),
+		ImapServer:        d.Get("imap_server").(string),
+		ImapPort:          d.Get("imap_port").(int),
+		ImapSsl:           d.Get("imap_ssl").(bool),
+		StartTLS:          d.Get("starttls").(bool),
+		SkipTLSVerify:     d.Get("skip_tls_verify").(bool),
+		ConnectionTimeout: time.Duration(d.Get("connection_timeout").(int)) * time.Second,
+		SecureNonce:       d.Get("secure_nonce").(bool),
 	}
 
+	// Validate and normalize configuration
+	validator := NewConfigValidator()
+	validator.SanitizeAndNormalize(config)
+
+	if err := validator.ValidateConfig(config); err != nil {
+		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
+	}
+
+	// Parse token fields
 	if err := config.ParseTokenFields(req, d); err != nil {
 		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
 	}
 
+	// Log configuration for debugging (without sensitive data)
+	b.Logger().Debug("writing IMAP configuration",
+		"server", config.ImapServer,
+		"port", config.ImapPort,
+		"ssl", config.ImapSsl,
+		"starttls", config.StartTLS,
+		"skip_tls_verify", config.SkipTLSVerify,
+		"connection_timeout", config.ConnectionTimeout,
+		"secure_nonce", config.SecureNonce)
+
+	// Store configuration
 	entry, err := logical.StorageEntryJSON("config", config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create storage entry: %w", err)
 	}
 
 	if err := req.Storage.Put(ctx, entry); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to store configuration: %w", err)
 	}
 
 	return nil, nil

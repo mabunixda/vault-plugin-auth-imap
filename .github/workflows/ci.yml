@@ -8,7 +8,7 @@ on:
     branches: ["main"]
 
 env:
-  GOVERSION: "1.21.x"
+  GOVERSION: "1.24.x"
 
 permissions:
   contents: write
@@ -94,13 +94,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.BOT_ACCESS_TOKEN }}
 
       - uses: go-semantic-release/action@v1
         id: generate_changelog
         with:
-          github-token: ${{ secrets.BOT_ACCESS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           prepend: true
           changelog-file: CHANGELOG.md
 

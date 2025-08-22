@@ -1,13 +1,37 @@
 GOARCH = $(shell go env GOARCH)
 OS = $(shell go env GOOS)
 
-.DEFAULT_GOAL := all
+IMAGE_NAME=$(shell yq e '.project_name' .goreleaser.yaml)
+TAG_NAME := $(shell test -d .git && git describe --abbrev=0 --tags)
+SHA := $(shell test -d .git && git rev-parse --short HEAD)
+COMMIT := $(SHA)
+# hide commit for releases
+VERSION := $(TAG_NAME)
+ifneq ($(RELEASE),1)
+	VERSION := $(TAG_NAME)-$(SHA)
+endif
+BUILD_DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+BUILD_TAGS := -tags=release
+GOVERSION=$(shell go version | sed 's/.*go\(.*\) .*/\1/')
+GIT_DIRTY=$(shell test -n "`git status --porcelain`" && echo "dirty" || echo "clean")
+LD_FLAGS := -s -w -X "github.com/mabunixda/vault-plugin-auth-imap/version.Version=$( VERSION )" \
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.BuildDate=$( BUILD_DATE )" \
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GoVersion=$(GOVERSION)" \
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitCommit=$( COMMIT )" \
+      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitDirty=$( GIT_DIRTY )"
+BUILD_ARGS := -o $(IMAGE_NAME) -trimpath -ldflags='$(LD_FLAGS)'
 
-all: fmt build
+.DEFAULT_GOAL := all
+.PHONY: build clean fmt start enable test test-cover
+
+all: clean fmt build
+
+ldflags:
+	@echo $(LD_FLAGS)
 
 build:
 	mkdir -p vault/plugins
-	./scripts/localbuild.sh
+	@LD_FLAGS='$(LD_FLAGS)' goreleaser build --snapshot --single-target
 
 start:
 	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/
@@ -16,12 +40,10 @@ enable:
 	vault auth enable -path=imap vault-plugin-auth-imap
 
 clean:
-	rm -f ./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/vault-plugin-auth-imap
+	rm -rf ./dist/
 
 fmt:
 	go fmt $$(go list ./...)
-
-.PHONY: build clean fmt start enable test test-cover
 
 
 test:

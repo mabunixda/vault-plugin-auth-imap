@@ -79,7 +79,7 @@ jobs:
           VERSION: ${{ needs.prebuild.outputs.version }}
           GOVERSION: ${{ env.GOVERSION }}
           GIT_DIRTY: ${{ steps.gitdirty.outputs.GIT_DIRTY}}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload assets
         if: success() && !startsWith(github.ref, 'refs/tags/')

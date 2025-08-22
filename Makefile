@@ -39,4 +39,3 @@ porcelain::
 
 assets::
 	go generate ./...
-

@@ -1,44 +1,47 @@
+version: 2
 release:
   prerelease: auto
   name_template: "{{.ProjectName}} v{{.Version}}"
 
 builds:
-- id: vault-plugin-auth-imap
-  main: ./cmd/vault-plugin-auth-imap
-  ldflags: >-
+  - id: vault-plugin-auth-imap
+    main: ./cmd/vault-plugin-auth-imap
+    ldflags: >-
       -s -w
       -X "github.com/mabunixda/vault-plugin-auth-imap/version.Version={{ .Tag }}"
       -X "github.com/mabunixda/vault-plugin-auth-imap/version.BuildDate={{ .CommitDate }}"
       -X "github.com/mabunixda/vault-plugin-auth-imap/version.GoVersion={{ .Env.GOVERSION }}"
       -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitCommit={{ .Env.GITHUB_SHA }}"
       -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitDirty={{ .Env.GIT_DIRTY }}"
-  env:
-    - CGO_ENABLED=0
-  goos:
-#    - freebsd
-    - windows
-    - darwin
-    - linux
-#    - netbsd
-#    - openbsd
-  goarch:
-    - amd64
-    - arm
-    - arm64
-#    - 386
-  goarm:
-    - 6
-    - 7
+    env:
+      - CGO_ENABLED=0
+    goos:
+      #    - freebsd
+      - windows
+      - darwin
+      - linux
+    #    - netbsd
+    #    - openbsd
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    #    - 386
+    goarm:
+      - 6
+      - 7
 
 archives:
-  -
-    id: vault-plugin-auth-imap
-    builds:
-    - vault-plugin-auth-imap
-    name_template: "{{ .Binary }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
-    format: binary
+  - id: vault-plugin-auth-imap
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_{{ .Arch }}"
+    builds_info:
+      group: root
+      owner: root
+      mode: 0644
+      # format is `time.RFC3339Nano`
+      mtime: 2008-01-02T15:04:05Z
     files:
-      - none*
+      - README.md
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "checksums.txt"

@@ -3,7 +3,7 @@ OS = $(shell go env GOOS)
 
 .DEFAULT_GOAL := all
 
-all: fmt build start
+all: fmt build
 
 build:
 	mkdir -p vault/plugins

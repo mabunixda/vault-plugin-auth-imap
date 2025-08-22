@@ -8,7 +8,15 @@ on:
     branches: ["main"]
 
 env:
+<<<<<<< HEAD
   GOVERSION: "1.24"
+=======
+<<<<<<< HEAD
+  GOVERSION: "1.24.x"
+=======
+  GOVERSION: "1.24"
+>>>>>>> 4e1de31 (fix: ci update (#16))
+>>>>>>> e5503b0 (fix: ci update (#16))
 
 permissions:
   contents: write

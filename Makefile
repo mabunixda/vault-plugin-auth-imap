@@ -29,6 +29,7 @@ test:
 
 test-coverage: test
 	go tool cover -html=coverage.out -o coverage.html
+	go tool cover -func=coverage.out
 	rm -f coverage.out
 
 porcelain::

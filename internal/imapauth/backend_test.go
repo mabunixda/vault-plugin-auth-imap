@@ -25,6 +25,10 @@ func TestBackend_Factory(t *testing.T) {
 	b, err := Factory(context.Background(), &logical.BackendConfig{})
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
+
+	// Verify backend type
+	backend := b.(*backend)
+	assert.NotNil(t, backend.nonces)
 }
 
 func TestBackend_FactoryNilConfig(t *testing.T) {
@@ -34,7 +38,15 @@ func TestBackend_FactoryNilConfig(t *testing.T) {
 }
 
 func TestBackend_Setup(t *testing.T) {
-	b, storage := getTestBackend(t)
+	b, _ := getTestBackend(t)
 	assert.NotNil(t, b)
-	assert.NotNil(t, storage)
+
+	// Verify backend has required properties
+	assert.NotNil(t, b.nonces)
+	assert.Equal(t, "auth", b.BackendType.String())
+
+	// Check specific paths exist
+	paths := b.Paths
+	assert.NotEmpty(t, paths)
+	assert.True(t, len(paths) >= 4, "Should have at least 4 paths (login, config, role, nonce)")
 }

@@ -108,3 +108,43 @@ func TestConfig_ValidateFields(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_ErrorHandling(t *testing.T) {
+	b, storage := getTestBackend(t)
+
+	// Test config validation edge cases
+	configData := map[string]interface{}{
+		"imap_server": "", // Empty server
+		"imap_port":   0,  // Invalid port
+	}
+
+	writeReq := &logical.Request{
+		Operation: logical.UpdateOperation,
+		Path:      "config",
+		Storage:   storage,
+		Data:      configData,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), writeReq)
+	assert.True(t, err != nil || (resp != nil && resp.IsError()))
+
+	// Test config with extreme values
+	configData = map[string]interface{}{
+		"imap_server": "test.com",
+		"imap_port":   65536, // Port too high
+	}
+
+	writeReq.Data = configData
+	resp, err = b.HandleRequest(context.Background(), writeReq)
+	assert.True(t, err != nil || (resp != nil && resp.IsError()))
+
+	// Test config with negative port
+	configData = map[string]interface{}{
+		"imap_server": "test.com",
+		"imap_port":   -1, // Negative port
+	}
+
+	writeReq.Data = configData
+	resp, err = b.HandleRequest(context.Background(), writeReq)
+	assert.True(t, err != nil || (resp != nil && resp.IsError()))
+}

@@ -2,6 +2,7 @@ package imapauth
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
@@ -126,4 +127,120 @@ func TestRole_Validation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRole_List(t *testing.T) {
+	b, storage := getTestBackend(t)
+
+	// List when no roles exist
+	req := &logical.Request{
+		Operation: logical.ListOperation,
+		Path:      "role",
+		Storage:   storage,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), req)
+	assert.NoError(t, err)
+	if resp != nil && resp.Data != nil && resp.Data["keys"] != nil {
+		assert.Equal(t, 0, len(resp.Data["keys"].([]string)))
+	}
+
+	// Create some roles
+	roles := []string{"role1", "role2", "role3"}
+	for _, roleName := range roles {
+		roleData := map[string]interface{}{
+			"principals":     []string{fmt.Sprintf("user@%s.com", roleName)},
+			"token_ttl":      "1h",
+			"token_max_ttl":  "24h",
+			"token_policies": []string{"default"},
+		}
+
+		req := &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      fmt.Sprintf("role/%s", roleName),
+			Storage:   storage,
+			Data:      roleData,
+		}
+
+		_, err := b.HandleRequest(context.Background(), req)
+		assert.NoError(t, err)
+	}
+
+	// List roles again
+	req = &logical.Request{
+		Operation: logical.ListOperation,
+		Path:      "role",
+		Storage:   storage,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), req)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	if resp.Data != nil && resp.Data["keys"] != nil {
+		keys := resp.Data["keys"].([]string)
+		assert.Equal(t, 3, len(keys))
+
+		// Check all roles are present
+		for _, roleName := range roles {
+			assert.Contains(t, keys, roleName)
+		}
+	}
+}
+
+func TestRole_Delete(t *testing.T) {
+	b, storage := getTestBackend(t)
+
+	// Create a role first
+	roleData := map[string]interface{}{
+		"principals":     []string{"test@example.com"},
+		"token_ttl":      "1h",
+		"token_max_ttl":  "24h",
+		"token_policies": []string{"default"},
+	}
+
+	req := &logical.Request{
+		Operation: logical.CreateOperation,
+		Path:      "role/testrole",
+		Storage:   storage,
+		Data:      roleData,
+	}
+
+	_, err := b.HandleRequest(context.Background(), req)
+	assert.NoError(t, err)
+
+	// Verify role exists by reading it
+	readReq := &logical.Request{
+		Operation: logical.ReadOperation,
+		Path:      "role/testrole",
+		Storage:   storage,
+	}
+
+	resp, err := b.HandleRequest(context.Background(), readReq)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	// Delete the role
+	deleteReq := &logical.Request{
+		Operation: logical.DeleteOperation,
+		Path:      "role/testrole",
+		Storage:   storage,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), deleteReq)
+	assert.NoError(t, err)
+
+	// Verify role no longer exists
+	resp, err = b.HandleRequest(context.Background(), readReq)
+	assert.NoError(t, err)
+	assert.Nil(t, resp) // Should return nil for deleted role
+
+	// Try to delete non-existent role - should not error
+	deleteReq = &logical.Request{
+		Operation: logical.DeleteOperation,
+		Path:      "role/nonexistent",
+		Storage:   storage,
+	}
+
+	resp, err = b.HandleRequest(context.Background(), deleteReq)
+	assert.NoError(t, err)
 }

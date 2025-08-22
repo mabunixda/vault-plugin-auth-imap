@@ -86,8 +86,17 @@ func newBackend() *backend {
 }
 
 func (b *backend) pathAuthRenew(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	roleName := req.Auth.InternalData["role"].(string)
-	if roleName == "" {
+	if req.Auth == nil || req.Auth.InternalData == nil {
+		return nil, errors.New("no auth or internal data found during renewal")
+	}
+
+	roleNameInterface, ok := req.Auth.InternalData["role"]
+	if !ok || roleNameInterface == nil {
+		return nil, errors.New("failed to fetch role_name during renewal")
+	}
+
+	roleName, ok := roleNameInterface.(string)
+	if !ok || roleName == "" {
 		return nil, errors.New("failed to fetch role_name during renewal")
 	}
 

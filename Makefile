@@ -59,9 +59,8 @@ clean:
 fmt:
 	go fmt $$(go list ./...)
 
-
 test:
-	@go test -v -short -cover -covermode=atomic -race -timeout 120s -coverprofile=coverage.out $(shell go list ./...)
+	@go test -v -short -cover -covermode=atomic -race -timeout 120s -coverprofile=coverage.out ./...
 
 test-coverage: test
 	go tool cover -html=coverage.out -o coverage.html

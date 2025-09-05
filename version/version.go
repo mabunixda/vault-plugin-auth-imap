@@ -4,10 +4,10 @@ import "fmt"
 
 const (
 	Name      string = "imap"
-	Version   string = "v1.3.0"
-	GitCommit string = "d5dcfeccb9bfe900b763900e162a5a739fa670d2"
+	Version   string = "1.3.1"
+	GitCommit string = "25e39e5c11229e7a5bd09b7d114c7ac4d5ce6469"
 	GoVersion string = "1.24.6"
-	BuildDate string = "2025-08-22T17:32:27Z"
+	BuildDate string = "2025-09-05T14:07:14Z"
 	GitDirty  string = ""
 )
 

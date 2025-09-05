@@ -47,8 +47,8 @@ snapshot: prepare
 release: prepare
 	@LD_FLAGS='$(LD_FLAGS)' RELEASE=1 goreleaser release
 
-start:
-	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)/
+start: build
+	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./dist/vault-plugin-auth-imap_$(OS)_$(GOARCH)_v8.0/
 
 enable:
 	vault auth enable -path=imap vault-plugin-auth-imap
@@ -59,9 +59,8 @@ clean:
 fmt:
 	go fmt $$(go list ./...)
 
-
 test:
-	@go test -v -short -cover -covermode=atomic -race -timeout 120s -coverprofile=coverage.out $(shell go list ./...)
+	@go test -v -short -cover -covermode=atomic -race -timeout 120s -coverprofile=coverage.out ./...
 
 test-coverage: test
 	go tool cover -html=coverage.out -o coverage.html

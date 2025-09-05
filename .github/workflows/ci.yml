@@ -12,18 +12,20 @@ env:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   prebuild:
     runs-on: ubuntu-latest
 
     outputs:
+      version: ${{ steps.semrel.outputs.version }}
       currentDate: ${{ steps.info_date.outputs.date }}
 
     steps:
       - name: Gather Information - Date
         id: info_date
-        run: echo "date=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v5
 
@@ -46,11 +48,54 @@ jobs:
       - uses: pre-commit/action@v3.0.0
         if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
 
-  goreleaser:
-    needs: prebuild
+      - uses: go-semantic-release/action@v1
+        id: semrel
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          prepend: true
+          dry: true
+
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GOVERSION }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests with coverage
+        run: |
+          cd internal/imapauth
+          go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Check coverage
+        run: |
+          cd internal/imapauth
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
+            echo "Coverage $COVERAGE% is below 70% threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: internal/imapauth/coverage.out
+
+  goreleaser:
+    needs: [prebuild, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -66,6 +111,72 @@ jobs:
             makeTarget=release
           fi
           echo BUILD_FLAGS="$(grep -A1 "${makeTarget}:"  Makefile | awk -F 'goreleaser' '{print $2}' | tail -n1)" >> "$GITHUB_OUTPUT"
+
+      - name: Update version data in version/version.go
+        id: update_version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Get current Go version
+          GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+
+          # Determine if working directory is dirty
+          GIT_DIRTY=""
+          if [[ -n $(git status --porcelain) ]]; then
+            GIT_DIRTY="dirty"
+          fi
+
+          # Format build date as RFC3339
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Use semantic release version or current version
+          VERSION="${{ needs.prebuild.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION=$(grep -E '^\s*Version\s+string\s+=' version/version.go | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+
+          echo "Updating version/version.go with:"
+          echo "  Version: $VERSION"
+          echo "  GitCommit: ${{ github.sha }}"
+          echo "  GoVersion: $GO_VERSION"
+          echo "  BuildDate: $BUILD_DATE"
+          echo "  GitDirty: $GIT_DIRTY"
+
+          # Create backup
+          cp version/version.go version/version.go.bak
+
+          # Update all version constants
+          sed -i -E "s/^(\\s*Version\\s+string\\s+=\\s+).*/\\1\"$VERSION\"/" version/version.go
+          sed -i -E "s/^(\\s*GitCommit\\s+string\\s+=\\s+).*/\\1\"${{ github.sha }}\"/" version/version.go
+          sed -i -E "s/^(\\s*GoVersion\\s+string\\s+=\\s+).*/\\1\"$GO_VERSION\"/" version/version.go
+          sed -i -E "s/^(\\s*BuildDate\\s+string\\s+=\\s+).*/\\1\"$BUILD_DATE\"/" version/version.go
+          sed -i -E "s/^(\\s*GitDirty\\s+string\\s+=\\s+).*/\\1\"$GIT_DIRTY\"/" version/version.go
+
+          # Show the changes
+          echo "=== Updated version/version.go ==="
+          cat version/version.go
+
+          # Clean up backup
+          rm -f version/version.go.bak
+
+      - name: Validate version update
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== Validating version constants ==="
+          echo "Checking that all constants were updated properly:"
+          grep -E "^\s*(Version|GitCommit|GoVersion|BuildDate|GitDirty)\s+string\s+=" version/version.go
+
+          # Verify the file compiles
+          go build -o /tmp/version-test ./version
+          echo "Version constants validated successfully"
+
+      - name: Commit updated version.go
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "[skip ci] update version constants for build ${{ github.sha }}"
+          file_pattern: version/version.go
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
 
       - name: CI Builds
         id: build

@@ -14,11 +14,11 @@ BUILD_DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 BUILD_TAGS := -tags=release
 GOVERSION=$(shell go version | sed 's/.*go\(.*\) .*/\1/')
 GIT_DIRTY=$(shell test -n "`git status --porcelain`" && echo "dirty" || echo "clean")
-LD_FLAGS := -s -w -X "github.com/mabunixda/vault-plugin-auth-imap/version.Version=$( VERSION )" \
-      -X "github.com/mabunixda/vault-plugin-auth-imap/version.BuildDate=$( BUILD_DATE )" \
-      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GoVersion=$(GOVERSION)" \
-      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitCommit=$( COMMIT )" \
-      -X "github.com/mabunixda/vault-plugin-auth-imap/version.GitDirty=$( GIT_DIRTY )"
+LD_FLAGS := -s -w -X "github.com/mabunixda/imap/version.Version=$( VERSION )" \
+      -X "github.com/mabunixda/imap/version.BuildDate=$( BUILD_DATE )" \
+      -X "github.com/mabunixda/imap/version.GoVersion=$(GOVERSION)" \
+      -X "github.com/mabunixda/imap/version.GitCommit=$( COMMIT )" \
+      -X "github.com/mabunixda/imap/version.GitDirty=$( GIT_DIRTY )"
 BUILD_ARGS := -o $(IMAGE_NAME) -trimpath -ldflags='$(LD_FLAGS)'
 
 .DEFAULT_GOAL := all

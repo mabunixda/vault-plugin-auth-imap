@@ -12,4 +12,5 @@ var (
 
 	PluginVersion = fmt.Sprintf("%s%s", Version, GitDirty)
 	HumanVersion  = fmt.Sprintf("%s v%s (%s) %s", Name, Version, GitCommit, GitDirty)
+
 )

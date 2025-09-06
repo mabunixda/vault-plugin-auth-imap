@@ -112,6 +112,72 @@ jobs:
           fi
           echo BUILD_FLAGS="$(grep -A1 "${makeTarget}:"  Makefile | awk -F 'goreleaser' '{print $2}' | tail -n1)" >> "$GITHUB_OUTPUT"
 
+      - name: Update version data in version/version.go
+        id: update_version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Get current Go version
+          GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+
+          # Determine if working directory is dirty
+          GIT_DIRTY=""
+          if [[ -n $(git status --porcelain) ]]; then
+            GIT_DIRTY="dirty"
+          fi
+
+          # Format build date as RFC3339
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Use semantic release version or current version
+          VERSION="${{ needs.prebuild.outputs.version }}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION=$(grep -E '^\s*Version\s+string\s+=' version/version.go | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+
+          echo "Updating version/version.go with:"
+          echo "  Version: $VERSION"
+          echo "  GitCommit: ${{ github.sha }}"
+          echo "  GoVersion: $GO_VERSION"
+          echo "  BuildDate: $BUILD_DATE"
+          echo "  GitDirty: $GIT_DIRTY"
+
+          # Create backup
+          cp version/version.go version/version.go.bak
+
+          # Update all version constants
+          sed -i -E "s/^(\\s*Version\\s+string\\s+=\\s+).*/\\1\"$VERSION\"/" version/version.go
+          sed -i -E "s/^(\\s*GitCommit\\s+string\\s+=\\s+).*/\\1\"${{ github.sha }}\"/" version/version.go
+          sed -i -E "s/^(\\s*GoVersion\\s+string\\s+=\\s+).*/\\1\"$GO_VERSION\"/" version/version.go
+          sed -i -E "s/^(\\s*BuildDate\\s+string\\s+=\\s+).*/\\1\"$BUILD_DATE\"/" version/version.go
+          sed -i -E "s/^(\\s*GitDirty\\s+string\\s+=\\s+).*/\\1\"$GIT_DIRTY\"/" version/version.go
+
+          # Show the changes
+          echo "=== Updated version/version.go ==="
+          cat version/version.go
+
+          # Clean up backup
+          rm -f version/version.go.bak
+
+      - name: Validate version update
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== Validating version constants ==="
+          echo "Checking that all constants were updated properly:"
+          grep -E "^\s*(Version|GitCommit|GoVersion|BuildDate|GitDirty)\s+string\s+=" version/version.go
+
+          # Verify the file compiles
+          go build -o /tmp/version-test ./version
+          echo "Version constants validated successfully"
+
+      - name: Commit updated version.go
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "[skip ci] update version constants for build ${{ github.sha }}"
+          file_pattern: version/version.go
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+
       - name: CI Builds
         id: build
         uses: goreleaser/goreleaser-action@v6

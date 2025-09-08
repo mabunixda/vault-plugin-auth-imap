@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-export VAULT_ADDR="http://127.0.0.1:8200"
-export VAULT_TOKEN=root
-
 set -exo pipefail
+
+export VAULT_ADDR="http://127.0.0.1:8200"
+export VAULT_TOKEN=$(grep dev-root-token Makefile | awk -F 'token-id=' '{print $2}'  | awk '{print $1}')
 
 if [ -z "$MAILSERVER" ]; then
     echo "MAILSERVER not set"

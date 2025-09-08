@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report

@@ -1,3 +1,11 @@
+## 1.3.2 (2025-09-08)
+
+#### Bug Fixes
+
+* removeal of securenone as default true (#22) (f14debd1)
+* update ci workflow (#21) (2d9e511c)
+
+
 ## 1.3.0 (2025-08-22)
 
 #### Feature

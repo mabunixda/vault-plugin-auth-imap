@@ -4,6 +4,11 @@ name: Clean Go
 env:
   GO_VERSION: ^1.24
 
+permissions:
+  contents: read # Read repository content and code
+  pull-requests: read # Read PR information (if needed for context)
+  checks: write # Write check results (for status checks)
+
 on:
   push:
     branches: ["**", "!main"]

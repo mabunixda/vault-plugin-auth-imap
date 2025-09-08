@@ -11,8 +11,11 @@ env:
   GOVERSION: "1.24"
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: write # Create releases, commit changelog updates
+  pull-requests: read # Read PR information for context
+  actions: write # Upload artifacts (coverage, build artifacts)
+  checks: write # Report workflow status and test results
+  packages: write # Publish packages if using goreleaser with registries
 
 jobs:
   prebuild:
@@ -105,7 +108,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LD_FLAGS: ${{ steps.build_prepare.outputs.LD_FLAGS }}
-          RELASE: ${{ github.ref_type == 'tag' && '1' || '' }}
+          RELEASE: ${{ github.ref_type == 'tag' && '1' || '' }}
         with:
           distribution: goreleaser
           version: "~> v2"

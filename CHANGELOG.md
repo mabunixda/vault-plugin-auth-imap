@@ -1,3 +1,11 @@
+## 1.3.4 (2025-09-08)
+
+#### Bug Fixes
+
+* prebuild condition (81efa8c0)
+* workflow fixxes (#23) (c8d4bf44)
+
+
 ## 1.3.3 (2025-09-08)
 
 #### Bug Fixes

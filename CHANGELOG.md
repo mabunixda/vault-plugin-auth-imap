@@ -1,3 +1,10 @@
+## 1.3.5 (2025-09-08)
+
+#### Bug Fixes
+
+* permissions update (#24) (b7d7aa9b)
+
+
 ## 1.3.4 (2025-09-08)
 
 #### Bug Fixes

@@ -17,46 +17,32 @@ permissions:
 jobs:
   prebuild:
     runs-on: ubuntu-latest
-
-    outputs:
-      version: ${{ steps.semrel.outputs.version }}
-      currentDate: ${{ steps.info_date.outputs.date }}
+    if: github.event_name == 'pull_request'
 
     steps:
-      - name: Gather Information - Date
-        id: info_date
-        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v5
 
       - name: Check pre-commit presence
-        if: success() && !startsWith(github.ref, 'refs/tags/')
         id: precommit_exists
         uses: andstor/file-existence-action@v3
         with:
           files: ".pre-commit-config.yaml"
 
       - uses: actions/setup-python@v5
-        if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
+        if: steps.precommit_exists.outputs.files_exists == 'true'
 
       - uses: actions/setup-go@v5
-        if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
+        if: steps.precommit_exists.outputs.files_exists == 'true'
         with:
           go-version: ${{ env.GOVERSION }}
           cache: false
 
       - uses: pre-commit/action@v3.0.0
-        if: steps.precommit_exists.outputs.files_exists == 'true' && !startsWith(github.ref, 'refs/tags/')
-
-      - uses: go-semantic-release/action@v1
-        id: semrel
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          prepend: true
-          dry: true
+        if: steps.precommit_exists.outputs.files_exists == 'true'
 
   test:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v5
 
@@ -84,14 +70,15 @@ jobs:
           fi
 
       - name: Upload coverage report
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: internal/imapauth/coverage.out
 
-  goreleaser:
-    needs: [prebuild, test]
+  build:
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -118,21 +105,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LD_FLAGS: ${{ steps.build_prepare.outputs.LD_FLAGS }}
+          RELASE: ${{ github.ref_type == 'tag' && '1' || '' }}
         with:
           distribution: goreleaser
           version: "~> v2"
           args: ${{ steps.build_prepare.outputs.BUILD_FLAGS }}
 
-      - name: Upload assets
-        if: success() && !startsWith(github.ref, 'refs/tags/')
+      - name: Upload snapshot artifacts
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: vault-plugin-auth-imap
           path: dist/*
 
   release:
-    needs: [prebuild, goreleaser]
-    if: github.event_name != 'pull_request' && success() && !startsWith(github.ref, 'refs/tags/')
+    needs: [prebuild, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

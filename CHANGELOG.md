@@ -1,3 +1,12 @@
+## 1.3.7 (2025-09-08)
+
+#### Bug Fixes
+
+* cleanup scripts (dc7942a4)
+* cleanup scripts (f56157e7)
+* use release trigger (52b82eec)
+
+
 ## 1.3.6 (2025-09-08)
 
 #### Bug Fixes

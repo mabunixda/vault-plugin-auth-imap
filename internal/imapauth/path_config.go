@@ -46,7 +46,7 @@ func (b *backend) pathConfig() *framework.Path {
 			"secure_nonce": {
 				Type:        framework.TypeBool,
 				Description: `Whether to use secure nonce generation.`,
-				Default:     true,
+				Default:     false,
 			},
 		},
 

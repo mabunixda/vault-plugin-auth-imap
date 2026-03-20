@@ -1,3 +1,14 @@
+## 1.3.8 (2026-03-20)
+
+#### Bug Fixes
+
+* update dependencies (#27) (bda668f8)
+
+#### Build
+
+* **deps:** Bump golang.org/x/crypto (#25) (c7df0858)
+
+
 ## 1.3.7 (2025-09-08)
 
 #### Bug Fixes

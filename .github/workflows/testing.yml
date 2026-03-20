@@ -24,8 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Setup tools via mise
+      - name: Setup tools via mise (Linux/macOS)
         uses: jdx/mise-action@v4
+        if: runner.os != 'Windows'
+
+      - name: Setup tools via mise (Windows)
+        uses: jdx/mise-action@v4
+        if: runner.os == 'Windows'
+        with:
+          install: false
+
+      - name: Install Go via mise (Windows)
+        if: runner.os == 'Windows'
+        run: mise install go
 
       - name: Test
         run: make test

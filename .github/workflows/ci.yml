@@ -27,6 +27,11 @@ jobs:
       - name: Setup tools via mise
         uses: jdx/mise-action@v4
 
+      - name: Setup tools via mise
+        uses: jdx/mise-action@v4
+        with:
+          install_args: pre-commit
+
       - uses: pre-commit/action@v3.0.0
 
   test:

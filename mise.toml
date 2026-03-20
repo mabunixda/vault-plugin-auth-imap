@@ -1,4 +1,3 @@
 [tools]
 go = "1.25.7"
-pre-commit = "latest"
 python = "3.12"

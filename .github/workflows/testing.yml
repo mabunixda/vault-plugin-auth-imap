@@ -1,14 +1,11 @@
 ---
 name: Testing
 
-env:
-  GO_VERSION: ^1.24
-
 permissions:
-  contents: read          # Read repository content and code
-  checks: write           # Write test results as check runs
-  pull-requests: read     # Read PR information for context
-  actions: read           # Read workflow artifacts if needed
+  contents: read # Read repository content and code
+  checks: write # Write test results as check runs
+  pull-requests: read # Read PR information for context
+  actions: read # Read workflow artifacts if needed
 
 on:
   push:
@@ -27,10 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
+      - name: Setup tools via mise
+        uses: jdx/mise-action@v4
 
       - name: Test
         run: make test

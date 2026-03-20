@@ -1,9 +1,6 @@
 ---
 name: Clean Go
 
-env:
-  GO_VERSION: ^1.24
-
 permissions:
   contents: read # Read repository content and code
   pull-requests: read # Read PR information (if needed for context)
@@ -21,11 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: false
-        id: go
+      - name: Setup tools via mise
+        uses: jdx/mise-action@v4
 
       - name: Assets
         run: make assets
